@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Third Key — Fog of War</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #111827;
+      color: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 10px 0 6px;
+      font-size: 30px;
+      text-align: center;
+    }
+
+    p {
+      margin: 0 0 14px;
+      text-align: center;
+      color: #cbd5e1;
+    }
+
+    .hud {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .panel {
+      background: #1f2937;
+      border: 2px solid #374151;
+      border-radius: 10px;
+      padding: 10px 16px;
+      min-width: 160px;
+      text-align: center;
+    }
+
+    #viewport {
+      width: min(900px, calc(100vw - 32px));
+      height: min(720px, calc(100vh - 240px));
+      overflow: auto;
+      border-radius: 14px;
+      border: 3px solid #64748b;
+      box-shadow: 0 0 12px rgba(0,0,0,0.25);
+      background: rgba(30, 41, 59, 0.92);
+      position: relative;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    #viewport::-webkit-scrollbar {
+      display: none;
+    }
+
+    #game {
+      display: grid;
+      grid-template-columns: repeat(21, 40px);
+      grid-template-rows: repeat(23, 40px);
+      gap: 1px;
+      background: rgba(67, 85, 110, 0.95);
+      padding: 10px;
+      border-radius: 12px;
+      min-width: max-content;
+      min-height: max-content;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: filter 0.12s ease, opacity 0.12s ease;
+    }
+
+    .floor {
+      background: #d8b97d;
+    }
+
+    .wall {
+      background: #5f5a4d;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .player,
+    .key,
+    .door,
+    .exit {
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .player {
+      background-color: #d8b97d;
+      background-image: url('player.png');
+      background-size: 185%;
+    }
+
+    .key {
+      background-color: #d8b97d;
+      background-image: url('key.png');
+      background-size: 185%;
+    }
+
+    .door {
+      background-color: #d8b97d;
+      background-image: url('door.png');
+      background-size: 210%;
+    }
+
+    .door.open {
+      filter: brightness(1.05);
+    }
+
+    .exit {
+      background-color: #d8b97d;
+      background-image: url('flag.png');
+      background-size: 185%;
+    }
+
+    .fog-hidden {
+      background: #020617 !important;
+      border-color: #020617 !important;
+      filter: brightness(0.2);
+    }
+
+    .fog-hidden.player,
+    .fog-hidden.key,
+    .fog-hidden.door,
+    .fog-hidden.exit {
+      background-image: none !important;
+    }
+
+    .fog-dim {
+      filter: brightness(0.45);
+    }
+
+    .controls {
+      margin-top: 16px;
+      text-align: center;
+      color: #cbd5e1;
+    }
+
+    .actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: #111827;
+      border: 2px solid #4b5563;
+      border-radius: 14px;
+      padding: 24px;
+      max-width: 560px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 0 30px rgba(0,0,0,0.45);
+    }
+
+    .flag {
+      margin-top: 16px;
+      background: #0f172a;
+      color: #facc15;
+      border: 2px dashed #facc15;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 22px;
+      font-weight: bold;
+      word-break: break-word;
+    }
+
+    @media (max-width: 760px) {
+      #viewport {
+        width: calc(100vw - 24px);
+        height: min(70vh, 560px);
+      }
+
+      #game {
+        grid-template-columns: repeat(21, 26px);
+        grid-template-rows: repeat(23, 26px);
+        padding: 8px;
+      }
+
+      .cell {
+        width: 26px;
+        height: 26px;
+      }
+
+      .player,
+      .key,
+      .exit {
+        background-size: 170%;
+      }
+
+      .door {
+        background-size: 190%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>The Third Key — Fog of War</h1>
+  <i hidden id="x-frag" data-z="ew==" data-y="fQ=="></i>
+  <p>Собери 3 ключа, открой дверь и доберись до флага. Видна только область рядом с игроком.</p>
+
+  <div class="hud">
+    <div class="panel">Ключи: <span id="keyCount">0</span>/3</div>
+    <div class="panel">Дверь: <span id="doorStatus">Закрыта</span></div>
+    <div class="panel">Обзор: <span id="visionStatus">5 клеток</span></div>
+  </div>
+
+  <div id="viewport">
+    <div id="game" data-k="T0JJUw==" data-b="dGhyZWVfa2V5cw=="></div>
+  </div>
+
+  <div class="controls">
+    Управление: <b>WASD</b> или <b>стрелки</b>
+    <div class="actions">
+      <button id="restartBtn" data-l="X29uZV8=">Начать заново</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="winOverlay">
+    <div class="modal">
+      <h2>Победа!</h2>
+      <p>Ты собрал все 3 ключа, открыл дверь и добрался до флага, спрятанного в закрытой секции.</p>
+      <div class="flag" id="flagText">[access granted]</div>
+      <span hidden data-r0=""></span>
+      <span hidden data-r1="ZXhpdA=="></span>
+      <div class="actions">
+        <button id="playAgainBtn">Играть ещё раз</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const originalMap = [
+      ['#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#'],
+      ['#','P','.','.','.','.','#','.','.','.','.','.','.','.','#','.','.','.','.','K','#'],
+      ['#','.','#','#','#','.','#','.','#','#','#','#','#','.','#','.','#','#','#','.','#'],
+      ['#','.','#','.','.','.','#','.','#','.','.','.','#','.','#','.','#','.','.','.','#'],
+      ['#','.','#','.','#','#','#','.','#','.','#','.','#','.','#','.','#','.','#','#','#'],
+      ['#','.','.','.','#','.','.','.','.','.','#','.','.','.','#','.','#','.','.','.','#'],
+      ['#','#','#','.','#','.','#','#','#','#','#','#','#','.','#','.','#','#','#','.','#'],
+      ['#','.','.','.','#','.','.','.','.','.','.','.','#','.','#','.','.','.','#','.','#'],
+      ['#','.','#','#','#','#','#','#','#','.','#','.','#','.','#','#','#','.','#','.','#'],
+      ['#','.','.','.','.','.','.','.','#','.','#','.','#','.','.','.','#','.','#','.','#'],
+      ['#','.','#','#','#','#','#','.','#','.','#','.','#','#','#','.','#','.','#','.','#'],
+      ['#','.','#','.','.','.','#','.','.','.','#','.','.','.','#','.','#','.','.','.','#'],
+      ['#','.','#','.','#','.','#','#','#','.','#','#','#','.','#','.','#','#','#','.','#'],
+      ['#','.','.','.','#','.','.','.','#','.','.','.','#','.','.','.','.','.','#','.','#'],
+      ['#','#','#','.','#','#','#','.','#','#','#','.','#','#','#','#','#','.','#','.','#'],
+      ['#','.','.','.','#','.','.','.','.','.','#','.','.','.','.','.','#','.','#','.','#'],
+      ['#','.','#','#','#','.','#','#','#','.','#','#','#','#','#','.','#','.','#','.','#'],
+      ['#','.','.','.','#','.','.','.','#','.','.','.','.','K','#','.','#','.','.','.','#'],
+      ['#','.','#','.','#','#','#','.','#','#','#','#','#','.','#','#','#','#','#','.','#'],
+      ['#','K','#','.','.','.','.','.','.','.','.','.','.','.','D','.','#','#','#','#','#'],
+      ['#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','.','#','#','#','#','#'],
+      ['#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','.','.','.','F','.','#'],
+      ['#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#','#']
+    ];
+
+    let map = [];
+    let player = { x: 0, y: 0 };
+    let keysCollected = 0;
+    let doorOpen = false;
+    const totalKeys = 3;
+    const visionRadius = 5;
+
+    const viewport = document.getElementById('viewport');
+    const game = document.getElementById('game');
+    const keyCount = document.getElementById('keyCount');
+    const doorStatus = document.getElementById('doorStatus');
+    const visionStatus = document.getElementById('visionStatus');
+    const winOverlay = document.getElementById('winOverlay');
+    const restartBtn = document.getElementById('restartBtn');
+    const playAgainBtn = document.getElementById('playAgainBtn');
+    const flagText = document.getElementById('flagText');
+
+    function cloneMap() {
+      return originalMap.map(row => [...row]);
+    }
+
+    function getCellMetrics() {
+      if (window.innerWidth <= 760) {
+        return { size: 27, padding: 8 };
+      }
+      return { size: 41, padding: 10 };
+    }
+
+    function centerOnPlayer() {
+      const { size, padding } = getCellMetrics();
+      const targetX = player.x * size + padding + size / 2 - viewport.clientWidth / 2;
+      const targetY = player.y * size + padding + size / 2 - viewport.clientHeight / 2;
+      viewport.scrollLeft = Math.max(0, targetX);
+      viewport.scrollTop = Math.max(0, targetY);
+    }
+
+    function initGame() {
+      map = cloneMap();
+      keysCollected = 0;
+      doorOpen = false;
+      winOverlay.classList.remove('show');
+
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          if (map[y][x] === 'P') {
+            player.x = x;
+            player.y = y;
+          }
+        }
+      }
+
+      updateHud();
+      render();
+    }
+
+    function updateHud() {
+      keyCount.textContent = keysCollected;
+      doorStatus.textContent = doorOpen ? 'Открыта' : 'Закрыта';
+      visionStatus.textContent = `${visionRadius} клеток`;
+    }
+
+    function fogClass(x, y) {
+      const dx = Math.abs(x - player.x);
+      const dy = Math.abs(y - player.y);
+      const dist = dx + dy;
+
+      if (dist <= visionRadius - 2) return '';
+      if (dist <= visionRadius) return 'fog-dim';
+      return 'fog-hidden';
+    }
+
+    function render() {
+      game.innerHTML = '';
+
+      for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+
+          const tile = map[y][x];
+
+          if (x === player.x && y === player.y) {
+            cell.classList.add('player');
+          } else if (tile === '#') {
+            cell.classList.add('wall');
+          } else if (tile === 'K') {
+            cell.classList.add('key');
+          } else if (tile === 'D') {
+            cell.classList.add('door');
+            if (doorOpen) {
+              cell.classList.add('open');
+            }
+          } else if (tile === 'F') {
+            cell.classList.add('exit');
+          } else {
+            cell.classList.add('floor');
+          }
+
+          const fog = fogClass(x, y);
+          if (fog) cell.classList.add(fog);
+
+          game.appendChild(cell);
+        }
+      }
+
+      centerOnPlayer();
+    }
+
+    function tryMove(dx, dy) {
+      const newX = player.x + dx;
+      const newY = player.y + dy;
+      const tile = map[newY]?.[newX];
+
+      if (!tile || tile === '#') return;
+      if (tile === 'D' && !doorOpen) return;
+
+      player.x = newX;
+      player.y = newY;
+
+      if (tile === 'K') {
+        keysCollected++;
+        map[newY][newX] = '.';
+        if (keysCollected === totalKeys) {
+          doorOpen = true;
+        }
+      }
+
+      if (tile === 'F') {
+        render();
+        updateHud();
+        showWin();
+        return;
+      }
+
+      updateHud();
+      render();
+    }
+
+    function _n(v) {
+      try {
+        return atob(v);
+      } catch {
+        return '';
+      }
+    }
+
+    function _q() {
+      const a = game.dataset.k || '';
+      const b = document.getElementById('x-frag')?.dataset?.z || '';
+      const c = game.dataset.b || '';
+      const d = restartBtn.dataset.l || '';
+      const e = document.querySelector('[data-r0]')?.dataset?.r0 || '';
+      const f = document.querySelector('[data-r1]')?.dataset?.r1 || '';
+      const g = document.getElementById('x-frag')?.dataset?.y || '';
+      return [_n(a), _n(b), _n(c), _n(d), _n(e), _n(f), _n(g)].join('');
+    }
+
+    function _paintPrize() {
+      flagText.textContent = _q();
+    }
+
+    function showWin() {
+      _paintPrize();
+      winOverlay.classList.add('show');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (winOverlay.classList.contains('show')) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'w':
+        case 'arrowup':
+          tryMove(0, -1);
+          break;
+        case 's':
+        case 'arrowdown':
+          tryMove(0, 1);
+          break;
+        case 'a':
+        case 'arrowleft':
+          tryMove(-1, 0);
+          break;
+        case 'd':
+        case 'arrowright':
+          tryMove(1, 0);
+          break;
+      }
+    });
+
+    restartBtn.addEventListener('click', initGame);
+    playAgainBtn.addEventListener('click', initGame);
+    window.addEventListener('resize', centerOnPlayer);
+
+    initGame();
+  </script>
+</body>
+</html>
