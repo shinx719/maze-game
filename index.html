@@ -476,27 +476,30 @@
     }
 
     document.addEventListener('keydown', (e) => {
-      if (winOverlay.classList.contains('show')) return;
+  if (winOverlay.classList.contains('show')) return;
 
-      switch (e.key.toLowerCase()) {
-        case 'w':
-        case 'arrowup':
-          tryMove(0, -1);
-          break;
-        case 's':
-        case 'arrowdown':
-          tryMove(0, 1);
-          break;
-        case 'a':
-        case 'arrowleft':
-          tryMove(-1, 0);
-          break;
-        case 'd':
-        case 'arrowright':
-          tryMove(1, 0);
-          break;
-      }
-    });
+  switch (e.code) {
+    case 'KeyW':
+    case 'ArrowUp':
+      tryMove(0, -1);
+      break;
+
+    case 'KeyS':
+    case 'ArrowDown':
+      tryMove(0, 1);
+      break;
+
+    case 'KeyA':
+    case 'ArrowLeft':
+      tryMove(-1, 0);
+      break;
+
+    case 'KeyD':
+    case 'ArrowRight':
+      tryMove(1, 0);
+      break;
+  }
+});
 
     restartBtn.addEventListener('click', initGame);
     playAgainBtn.addEventListener('click', initGame);
